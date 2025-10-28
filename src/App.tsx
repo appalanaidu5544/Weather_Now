@@ -4,7 +4,7 @@ import "./styles.css";
 const GEO_BASE = "https://geocoding-api.open-meteo.com/v1/search";
 const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 
-const WEATHER_CODE = {
+const WEATHER_CODE: Record<number, string> = {
   0: "Clear sky",
   1: "Mainly clear",
   2: "Partly cloudy",
@@ -35,7 +35,7 @@ const WEATHER_CODE = {
   99: "Thunderstorm with heavy hail",
 };
 
-function degToCompass(deg) {
+function degToCompass(deg: number): string {
   const dirs = [
     "N",
     "NNE",
@@ -57,31 +57,61 @@ function degToCompass(deg) {
   return dirs[Math.round(deg / 22.5) % 16];
 }
 
-function cToF(c) {
+function cToF(c: number): number {
   return (c * 9) / 5 + 32;
 }
 
-function formatHour(iso) {
+function formatHour(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+// Types for API data
+interface Place {
+  id: number;
+  name: string;
+  admin1?: string;
+  country?: string;
+  latitude: number;
+  longitude: number;
+}
+
+interface CurrentWeather {
+  temperature_2m: number;
+  apparent_temperature: number;
+  is_day: number;
+  weather_code: number;
+  wind_speed_10m: number;
+  wind_direction_10m: number;
+  relative_humidity_2m: number;
+}
+
+interface HourlyWeather {
+  time: string[];
+  temperature_2m: number[];
+  precipitation_probability?: number[];
+}
+
+interface WeatherData {
+  current: CurrentWeather;
+  hourly: HourlyWeather;
+}
+
 export default function App() {
-  const [query, setQuery] = useState("");
-  const [suggestions, setSuggestions] = useState([]);
-  const [selectedPlace, setSelectedPlace] = useState(null);
-  const [weather, setWeather] = useState(null);
-  const [unit, setUnit] = useState("C"); // "C" | "F"
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const abortRef = useRef(null);
+  const [query, setQuery] = useState<string>("");
+  const [suggestions, setSuggestions] = useState<Place[]>([]);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [unit, setUnit] = useState<"C" | "F">("C");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!query) {
       setSuggestions([]);
       return;
     }
-    // Fetch suggestions with debounce
     const t = setTimeout(async () => {
       try {
         if (abortRef.current) abortRef.current.abort();
@@ -93,16 +123,16 @@ export default function App() {
         if (!res.ok) throw new Error("Failed to fetch suggestions");
         const data = await res.json();
         setSuggestions(data?.results || []);
-      } catch (e) {
-        if (e.name !== "AbortError") {
-          // ignore transient errors
+      } catch (e: unknown) {
+        if (e instanceof Error && e.name !== "AbortError") {
+          console.error(e);
         }
       }
     }, 300);
     return () => clearTimeout(t);
   }, [query]);
 
-  const handlePick = async (place) => {
+  const handlePick = async (place: Place) => {
     setSelectedPlace(place);
     setSuggestions([]);
     setError("");
@@ -111,8 +141,8 @@ export default function App() {
     setWeather(null);
     try {
       const params = new URLSearchParams({
-        latitude: place.latitude,
-        longitude: place.longitude,
+        latitude: place.latitude.toString(),
+        longitude: place.longitude.toString(),
         current: [
           "temperature_2m",
           "apparent_temperature",
@@ -133,8 +163,12 @@ export default function App() {
       if (!wxRes.ok) throw new Error("Failed to fetch weather");
       const wx = await wxRes.json();
       setWeather(wx);
-    } catch (e) {
-      setError(e.message || "Something went wrong");
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        setError(e.message || "Something went wrong");
+      } else {
+        setError("Something went wrong");
+      }
     } finally {
       setLoading(false);
     }
@@ -162,7 +196,7 @@ export default function App() {
     if (!weather?.hourly) return [];
     const { time, temperature_2m, precipitation_probability } = weather.hourly;
     const now = Date.now();
-    const items = [];
+    const items: { time: string; temp: number; pop: number }[] = [];
     for (let i = 0; i < time.length && items.length < 12; i++) {
       const t = new Date(time[i]).getTime();
       if (t >= now) {
@@ -206,7 +240,6 @@ export default function App() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              // If we have suggestions, auto-pick the first one
               if (suggestions.length > 0) handlePick(suggestions[0]);
             }}
           >
@@ -311,7 +344,7 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        <span>Powered by Open‑Meteo</span>
+        <span>Powered by Open-Meteo</span>
         <a
           href="https://open-meteo.com/"
           target="_blank"

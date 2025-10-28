@@ -17,4 +17,8 @@
   
   
   .app{ max-width: 980px; margin: 0 auto; padding: 20px; }
-  .app-header{ display } 
+  .app-header {
+    display: flex; /* or block/grid depending on your layout */
+    align-items: center;
+    justify-content: space-between;
+  }
